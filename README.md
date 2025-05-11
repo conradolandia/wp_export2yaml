@@ -101,8 +101,8 @@ post['type'] = get_text('wp:post_type')
 You can also add or comment out other fields in a similar way.
 
 ## Advanced Formatting and Robustness
-- The converter now detects both explicit (`<p>`) and implicit (newlines, multiple `<br>`) paragraphs in WordPress HTML content.
-- Inline elements (like `<a>`, `<strong>`, `<em>`) are kept inline, not split into their own paragraphs.
+- The converter detects both explicit (`<p>`) and implicit (newlines, multiple `<br>`) paragraphs in WordPress HTML content.
+- Inline elements (like `<a>`, `<strong>`, `<em>`) are kept inline.
 - The Markdown output is post-processed to ensure that block elements (headings, lists, etc.) start new paragraphs, and that paragraphs are separated by blank lines.
 - This ensures that the YAML output is as close as possible to the original WordPress content structure, but in a clean, Markdown-friendly format.
 
@@ -110,7 +110,7 @@ You can also add or comment out other fields in a similar way.
 - **BeautifulSoup warnings** are suppressed by default.
 - If you encounter a deserialization error, ensure your PHP serialized data is valid. The script uses `phpserialize` for all unserialization.
 - For large XML files, the script uses `lxml.iterparse` for efficient, low-memory parsing.
-- If you notice paragraphs are not preserved as expected, check your original WordPress HTML for implicit paragraphs (newlines or `<br>` tags). The converter now handles these, but edge cases may still exist. If you find one, please open an issue or PR!
+- If you notice paragraphs are not preserved as expected, check your original WordPress HTML for implicit paragraphs (newlines or `<br>` tags). The converter handles these, but edge cases may still exist. If you find one, please open a PR!
 - If you want to further customize the Markdown or YAML output, you can edit the `wrap_inline_runs_in_paragraphs`, `html_paragraphize`, or `postprocess_markdown` functions in `wp_export2yaml.py`.
 
 ## License
