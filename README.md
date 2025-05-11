@@ -81,24 +81,94 @@ uv run main.py wp_export.xml wp_export.yaml --convert-to-markdown --post-types p
 
 ## Example
 
+Command line: `uv run main.py wp_source.xml wp_destination.yaml --convert-to-markdown --post-types proyectos --exclude-custom-fields _edit_last _fechas _galeria _wp_page_template _wpcom_is_markdown wp_featherlight_disable _g_feedback_shortcode* _wp_old_slug`
+
+Source XML (fragment):
+
+```xml
+<item>
+	<title><![CDATA[Project Title]]></title>
+	<link>https://example.com/projects/project-title/</link>
+	<pubDate>Thu, 29 Dec 2022 03:21:06 +0000</pubDate>
+	<dc:creator><![CDATA[author]]></dc:creator>
+	<guid isPermaLink="false">https://example.com/?post_type=proyectos&#038;p=797</guid>
+	<description></description>
+	<content:encoded><![CDATA[This is an example project dedicated to illustrating the conversion process. It aims to showcase how WordPress content, with its specific structure and formatting, can be transformed into clean and readable YAML. This content might describe the project's goals, technologies used, or key team members. Visit the project website at <a href="https://example.com/" target="_blank" rel="noopener">https://example.com/</a>.]]></content:encoded>
+	<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+	<wp:post_id>797</wp:post_id>
+	<wp:post_date><![CDATA[2022-12-28 22:21:06]]></wp:post_date>
+	<wp:post_date_gmt><![CDATA[2022-12-29 03:21:06]]></wp:post_date_gmt>
+	<wp:post_modified><![CDATA[2022-12-29 22:52:03]]></wp:post_modified>
+	<wp:post_modified_gmt><![CDATA[2022-12-30 03:52:03]]></wp:post_modified_gmt>
+	<wp:comment_status><![CDATA[closed]]></wp:comment_status>
+	<wp:ping_status><![CDATA[closed]]></wp:ping_status>
+	<wp:post_name><![CDATA[project-title]]></wp:post_name>
+	<wp:status><![CDATA[publish]]></wp:status>
+	<wp:post_parent>0</wp:post_parent>
+	<wp:menu_order>0</wp:menu_order>
+	<wp:post_type><![CDATA[proyectos]]></wp:post_type>
+	<wp:post_password><![CDATA[]]></wp:post_password>
+	<wp:is_sticky>0</wp:is_sticky>
+	<category domain="tipos" nicename="front-end"><![CDATA[Front end]]></category>
+	<category domain="clientes" nicename="client-org"><![CDATA[Client Organization]]></category>
+	<category domain="tipos" nicename="wordpress"><![CDATA[WordPress]]></category>
+	<wp:postmeta>
+		<wp:meta_key><![CDATA[_edit_last]]></wp:meta_key>
+		<wp:meta_value><![CDATA[1]]></wp:meta_value>
+	</wp:postmeta>
+	<wp:postmeta>
+		<wp:meta_key><![CDATA[_thumbnail_id]]></wp:meta_key>
+		<wp:meta_value><![CDATA[798]]></wp:meta_value>
+	</wp:postmeta>
+	<wp:postmeta>
+		<wp:meta_key><![CDATA[fechas]]></wp:meta_key>
+		<wp:meta_value><![CDATA[2019]]></wp:meta_value>
+	</wp:postmeta>
+	<wp:postmeta>
+		<wp:meta_key><![CDATA[_fechas]]></wp:meta_key>
+		<wp:meta_value><![CDATA[field_639d30b2540e1]]></wp:meta_value>
+	</wp:postmeta>
+	<wp:postmeta>
+		<wp:meta_key><![CDATA[galeria]]></wp:meta_key>
+		<wp:meta_value><![CDATA[a:4:{i:0;s:3:"799";i:1;s:3:"800";i:2;s:3:"801";i:3;s:3:"802";}]]></wp:meta_value>
+	</wp:postmeta>
+	<wp:postmeta>
+		<wp:meta_key><![CDATA[_galeria]]></wp:meta_key>
+		<wp:meta_value><![CDATA[field_639c3bff28f62]]></wp:meta_value>
+	</wp:postmeta>
+</item>
+```
+
+Result YAML (fragment):
+
 ```yaml
-- title: Example Project
-  slug: example-project
+- id: '797'
+  title: Project Title
+  slug: project-title
   post_type: proyectos
-  post_date: "2023-01-01 12:00:00"
-  content: |
-    This is a **Markdown** block.
-
-    - List item 1
-    - List item 2
-
-    Here is a [link](https://example.com) and some **bold text** in the same paragraph.
-
-    Another paragraph follows.
+  post_date: '2022-12-28 22:21:06'
+  content: This is an example project dedicated to illustrating the conversion process.
+    It aims to showcase how WordPress content, with its specific structure and formatting,
+    can be transformed into clean and readable YAML. This content might describe
+    the project's goals, technologies used, or key team members. Visit the project
+    website at [https://example.com/](https://example.com/ "https://example.com/").
+  taxonomies:
+    tipos:
+    - name: Front end
+      slug: front-end
+    - name: WordPress
+      slug: wordpress
+    clientes:
+    - name: Client Organization
+      slug: client-org
   custom_fields:
+    fechas: '2019'
     galeria:
-      - 2023/01/image1.jpg
-      - 2023/01/image2.jpg
+    - 2022/12/image1.png
+    - 2022/12/image2.png
+    - 2022/12/image3.png
+    - 2022/12/image4.png
+    thumbnail: 2022/12/featured-image.jpg
 ```
 
 #### Optional: Add, remove, or rename fields
