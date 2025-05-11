@@ -29,11 +29,19 @@ This project provides a robust Python tool for converting WordPress WXR (XML exp
 
 > **Note:** PHP is **not required.** All unserialization is handled natively in Python.
 
-The `main.py` entry point is compatible with [uv](https://github.com/astral-sh/uv) out of the box, allowing you to run it directly without installing dependencies first:
+You can use the CLI entry point after installing dependencies, or run the module directly:
 
 ```bash
-uv run main.py
+# Run as a CLI tool (after installing dependencies)
+wp-converter wp_export.xml wp_export.yaml [options]
+
+# Or run as a module
+python -m wp_converter wp_export.xml wp_export.yaml [options]
+
+# Or with uv
+uv run -m wp_converter wp_export.xml wp_export.yaml [options]
 ```
+If you installed the package in editable mode (`pip install -e .`), the `wp-converter` command will be available globally in your environment.
 
 ## Usage
 
@@ -46,22 +54,28 @@ uv run main.py
 Basic usage:
 
 ```bash
-python main.py wp_export.xml wp_export.yaml
+wp-converter wp_export.xml wp_export.yaml
 ```
 
 With options:
 
 ```bash
-python main.py wp_export.xml wp_export.yaml \
+wp-converter wp_export.xml wp_export.yaml \
   --convert-to-markdown \
   --post-types proyectos \
   --exclude-custom-fields _edit_last _fechas _galeria _g_feedback_shortcode*
 ```
 
-Or with `uv`:
+Or as a module:
 
 ```bash
-uv run main.py wp_export.xml wp_export.yaml --convert-to-markdown --post-types proyectos
+python -m wp_converter wp_export.xml wp_export.yaml --convert-to-markdown --post-types proyectos
+```
+
+Or with uv:
+
+```bash
+uv run -m wp_converter wp_export.xml wp_export.yaml --convert-to-markdown --post-types proyectos
 ```
 
 #### Command-line options
@@ -81,7 +95,7 @@ uv run main.py wp_export.xml wp_export.yaml --convert-to-markdown --post-types p
 
 ## Example
 
-Command line: `uv run main.py wp_source.xml wp_destination.yaml --convert-to-markdown --post-types proyectos --exclude-custom-fields _edit_last _fechas _galeria _wp_page_template _wpcom_is_markdown wp_featherlight_disable _g_feedback_shortcode* _wp_old_slug`
+Command line: `wp-converter wp_source.xml wp_destination.yaml --convert-to-markdown --post-types proyectos --exclude-custom-fields _edit_last _fechas _galeria _wp_page_template _wpcom_is_markdown wp_featherlight_disable _g_feedback_shortcode* _wp_old_slug`
 
 Source XML (fragment):
 
@@ -187,6 +201,20 @@ You can add or comment out other fields similarly.
 - Inline elements (like `<a>`, `<strong>`, `<em>`) are preserved inline.
 - The Markdown output is post-processed to ensure block elements (headings, lists, etc.) start new paragraphs and that paragraphs are separated by blank lines.
 - This ensures the YAML output closely reflects the original WordPress content structure in a clean, Markdown-friendly format.
+
+## Running Tests
+
+To run the test suite, use:
+
+```bash
+PYTHONPATH=. pytest tests
+```
+
+## Contributing
+
+- Source code is now in the `wp_converter/` package directory.
+- CLI logic is in `wp_converter/__main__.py`.
+- Tests are in the `tests/` directory.
 
 ## Troubleshooting
 
