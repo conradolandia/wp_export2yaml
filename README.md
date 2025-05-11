@@ -1,15 +1,17 @@
 # WordPress XML to YAML Converter
 
+> **WARNING:** Very early alpha, created to satisfy a custom requirement. You are welcome to fork it and modify it to your needs if you find it useful, but I provide no guarantees of any kind. PRs are welcome if you ae into that sort of stuff. Issues will probably be ignored until I have time.
+
 This project provides a robust Python tool to convert WordPress WXR (XML export) files into clean, readable YAML files. It is especially useful for migrating WordPress content to static site generators or custom CMSs, and supports advanced features like PHP serialized field decoding, HTML-to-Markdown conversion, and gallery attachment resolution.
 
 ## Features
 - **Converts WordPress XML (WXR) exports to YAML**
 - **Decodes PHP serialized custom fields** using pure Python (`phpserialize`)
 - **Converts HTML content to Markdown** (optional, via `markdownify`)
-- **Robust paragraph and inline formatting**: Handles both explicit and implicit paragraphs, and keeps inline elements (like links and bold text) inline, not split into their own paragraphs
+- **Robust paragraph and inline formatting**: Handles both explicit and implicit paragraphs, and keeps inline elements inlined (like links and bold text)
 - **Filters by post type** (e.g., only export `proyectos`)
 - **Excludes specific custom fields**
-- **Resolves gallery IDs to file paths** for attachments
+- **Resolves gallery IDs to file paths** for attachments (currently only for a custom post type `proyectos` with a custom field `galeria`, which is my current custom requirement. You can adapt it to use attachments, for example)
 - **Outputs all multiline strings as YAML block scalars** for readability
 - **Handles large XML files efficiently** with low memory usage
 
@@ -91,9 +93,8 @@ uv run main.py wp_export.xml wp_export.yaml --convert-to-markdown --post-types p
 
 #### Optional: add, remove or rename fields
 
-If you want to rename fields (for example, change `post_type` to `type`), edit `wp_export2yaml.py` as follows:
+If you want to rename fields (for example, change `post_type` to `type`), edit `wp_export2yaml.py`, and just change the field name:
 ```python
-# Around line 210...
 post['type'] = get_text('wp:post_type')
 ```
 
@@ -116,4 +117,4 @@ You can also add or comment out other fields in a similar way.
 MIT License
 
 ## Author
-Andrés Conrado Montoya Acosta
+[Andrés Conrado Montoya Acosta](https://sesentaycuatro.com) (@conradolandia)
