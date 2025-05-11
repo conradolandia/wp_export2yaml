@@ -1,7 +1,7 @@
 [project]
-name = "wp-converter"
+name = "wp_export2yaml"
 version = "0.1.0"
-description = "Add your description here"
+description = "An utility to convert WordPress WXR (XML export) files into clean, readable YAML files"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
