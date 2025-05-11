@@ -5,7 +5,14 @@ import argparse
 from datetime import datetime
 import subprocess
 import json
-import os # To check if php script exists
+import os
+from markdownify import markdownify as md
+from typing import List, Optional, Dict, Any
+from bs4 import MarkupResemblesLocatorWarning
+import warnings
+
+# Suppress BeautifulSoup warning
+warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
 # Define namespaces for lxml XPath
 NAMESPACES = {
@@ -16,15 +23,90 @@ NAMESPACES = {
     'rss': 'http://purl.org/rss/1.0/modules/syndication/'
 }
 
-# --- Function to call the PHP deserialization script ---
-def call_php_unserialize(serialized_string: str, php_script_path: str):
+# Custom representer for multiline strings as block scalars
+def str_presenter(dumper, data):
+    if '\n' in data:
+        return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='|')
+    return dumper.represent_scalar('tag:yaml.org,2002:str', data)
+
+yaml.add_representer(str, str_presenter)
+
+def convert_html_to_markdown(html_content: str) -> str:
+    """
+    Converts HTML content to Markdown format using markdownify.
+    
+    Args:
+        html_content: The HTML content to convert
+        
+    Returns:
+        The converted Markdown content
+    """
+    if not html_content:
+        return ""
+        
+    return md(
+        html_content,
+        heading_style="ATX",  # Use # style headings
+        bullets="-",         # Use - for lists
+        convert=['b', 'i', 'em', 'strong', 'p', 'a', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'br', 'hr'],
+        autolinks=True,      # Convert URLs to links
+        default_title=True,  # Use alt text as link title
+        escape_asterisks=False,  # Don't escape * in text
+        escape_underscores=False,  # Don't escape _ in text
+        keep_inline_images_in=['p', 'li'],  # Keep inline images in paragraphs and list items
+        newline_style='\n',  # Use \n for newlines
+        strip_links=False,   # Keep links
+        strip_images=False,  # Keep images
+        wrap=True,          # Wrap text
+        wrap_width=80       # Wrap at 80 characters
+    )
+
+def process_gallery_ids(posts_data: List[Dict[str, Any]], post: Dict[str, Any]) -> None:
+    """
+    Processes gallery IDs in a post's custom fields, replacing them with file paths.
+    
+    Args:
+        posts_data: List of all processed posts
+        post: The current post being processed
+    """
+    if 'galeria' not in post['custom_fields']:
+        return
+        
+    gallery_data = post['custom_fields']['galeria']
+    if not isinstance(gallery_data, (str, list)):
+        return
+        
+    # Convert string to list if necessary
+    if isinstance(gallery_data, str):
+        gallery_ids = [id.strip() for id in gallery_data.split(',')]
+    else:
+        gallery_ids = gallery_data
+        
+    image_urls = []
+    for attachment_id in gallery_ids:
+        # Find the attachment post
+        attachment = next(
+            (p for p in posts_data 
+             if p.get('post_type') == 'attachment' 
+             and str(p.get('id')) == str(attachment_id)),
+            None
+        )
+        
+        if attachment and '_wp_attached_file' in attachment['custom_fields']:
+            image_urls.append(attachment['custom_fields']['_wp_attached_file'])
+        else:
+            image_urls.append(attachment_id)  # Keep original ID if not found
+            
+    post['custom_fields']['galeria'] = image_urls
+
+def call_php_unserialize(serialized_string: str, php_script_path: str) -> Optional[Any]:
     """
     Calls the external PHP script to unserialize a string.
     Returns the deserialized Python object or None if deserialization fails (gracefully).
     Returns an error dictionary if the PHP script execution fails unexpectedly.
     """
     if not serialized_string:
-        return None # Cannot unserialize an empty string
+        return None
 
     try:
         # Ensure we have a string, not bytes
@@ -43,14 +125,14 @@ def call_php_unserialize(serialized_string: str, php_script_path: str):
             encoding='utf-8'  # Explicitly set encoding
         )
 
-        # Check if PHP script executed successfully (even if it reported a deserialization error)
+        # Check if PHP script executed successfully
         if process.returncode != 0:
              sys.stderr.write(f"Error executing PHP script '{php_script_path}'. Return code: {process.returncode}\n")
              sys.stderr.write(f"STDERR: {process.stderr}\n")
              sys.stderr.write(f"STDOUT: {process.stdout}\n")
              return {'_deserialization_error': 'PHP script execution failed', 'return_code': process.returncode, 'stderr': process.stderr, 'stdout_raw': process.stdout}
 
-        # PHP script successfully executed, now parse its JSON output
+        # Parse JSON output
         try:
             result = json.loads(process.stdout)
         except json.JSONDecodeError as e:
@@ -58,11 +140,10 @@ def call_php_unserialize(serialized_string: str, php_script_path: str):
             sys.stderr.write(f"Raw PHP STDOUT: {process.stdout}\n")
             return {'_deserialization_error': 'Invalid JSON output from PHP script', 'json_error': str(e), 'stdout_raw': process.stdout}
 
-        # Check if the JSON result indicates a deserialization error from the PHP script
+        # Check for deserialization error
         if isinstance(result, dict) and 'error' in result:
-            return None # Indicate deserialization failed gracefully
+            return None
 
-        # If no error was indicated, the result is the successfully deserialized value
         return result
 
     except FileNotFoundError:
@@ -72,19 +153,27 @@ def call_php_unserialize(serialized_string: str, php_script_path: str):
         sys.stderr.write(f"An unexpected error occurred calling the PHP script: {e}\n")
         return {'_deserialization_error': f'Unexpected Python error: {e}', 'error_type': type(e).__name__}
 
-
-# --- Main Parsing Function ---
-def parse_wxr2yaml(xml_filepath: str, yaml_filepath: str, php_script_path: str):
+def parse_wxr2yaml(
+    xml_filepath: str, 
+    yaml_filepath: str, 
+    php_script_path: str,
+    included_post_types: Optional[List[str]] = None,
+    excluded_custom_fields: Optional[List[str]] = None,
+    convert_to_markdown: bool = False
+) -> None:
     """
-    Parsea un archivo WXR de WordPress usando lxml iterparse y lo convierte a formato YAML.
-    Utiliza un script PHP externo para intentar deserializar campos personalizados.
-
+    Parse a WordPress WXR export file and convert it to YAML format.
+    
     Args:
-        xml_filepath: Ruta al archivo de exportación XML de WordPress (.wxr).
-        yaml_filepath: Ruta donde se guardará el archivo YAML de salida.
-        php_script_path: Ruta al script PHP auxiliar para deserializar.
+        xml_filepath: Path to the WordPress XML export file (.wxr)
+        yaml_filepath: Path where the YAML output file will be saved
+        php_script_path: Path to the PHP deserializer script
+        included_post_types: List of post types to include (None for all)
+        excluded_custom_fields: List of custom fields to exclude
+        convert_to_markdown: Whether to convert HTML content to Markdown
     """
     posts_data = []
+    attachments = {}  # Dictionary to store attachment data
 
     # Validate PHP script path
     if not os.path.isfile(php_script_path):
@@ -98,7 +187,7 @@ def parse_wxr2yaml(xml_filepath: str, yaml_filepath: str, php_script_path: str):
         print(f"Iniciando parseo de {xml_filepath} con lxml iterparse...")
         print(f"Utilizando script PHP en {php_script_path} para deserialización.")
 
-        # Iterate over each item element
+        # First pass: collect all posts and attachments
         for event, item in context:
             try:
                 post = {}
@@ -115,41 +204,23 @@ def parse_wxr2yaml(xml_filepath: str, yaml_filepath: str, php_script_path: str):
                     return text
 
                 # Extract basic fields using xpath
-                post['title'] = get_text('title')
-                post['link'] = get_text('link')
-                #post['pubDate'] = get_text('pubDate')
-
-                # Attempt to parse the date to a standard ISO 8601 format if possible
-                #if post['pubDate']:
-                #    try:
-                #        dt_obj = datetime.strptime(post['pubDate'], '%a, %d %b %Y %H:%M:%S %z')
-                #        post['date'] = dt_obj.isoformat()
-                #    except (ValueError, TypeError):
-                #        post['date'] = post['pubDate'] # Keep original if parsing fails
-                #else:
-                #     post['date'] = None
-                #
-                ## Remove pubDate from post
-                #del post['pubDate']
-
-                #post['creator'] = get_text('dc:creator')
-                #post['guid'] = get_text('guid')
-                #post['description'] = get_text('description')
-                post['content'] = get_text('content:encoded')
-                #post['excerpt'] = get_text('excerpt:encoded')
-
                 # Extract WordPress specific fields using xpath with wp namespace
                 post['id'] = get_text('wp:post_id')
-                post['post_date'] = get_text('wp:post_date')
-                #post['post_date_gmt'] = get_text('wp:post_date_gmt')
-                #post['comment_status'] = get_text('wp:comment_status')
-                #post['ping_status'] = get_text('wp:ping_status')
+                post['title'] = get_text('title')
                 post['slug'] = get_text('wp:post_name') # Slug
-                post['status'] = get_text('wp:status')
-                post['post_parent'] = get_text('wp:post_parent')
-                post['menu_order'] = get_text('wp:menu_order')
                 post['post_type'] = get_text('wp:post_type')
-                #post['post_mime_type'] = get_text('wp:post_mime_type')
+                post['post_date'] = get_text('wp:post_date')
+                post['content'] = get_text('content:encoded')
+                #post['link'] = get_text('link')
+                #post['status'] = get_text('wp:status')
+                #post['post_parent'] = get_text('wp:post_parent')
+                #post['menu_order'] = get_text('wp:menu_order')
+                
+                # Add more fields here if needed
+                
+                # Convert content to Markdown if requested
+                if convert_to_markdown and post['content']:
+                    post['content'] = convert_html_to_markdown(post['content'])
 
                 # Extract taxonomies
                 post['taxonomies'] = {}
@@ -167,7 +238,7 @@ def parse_wxr2yaml(xml_filepath: str, yaml_filepath: str, php_script_path: str):
                              'slug': nicename
                          })
 
-                # Extract metadatos y campos personalizados using wp:postmeta
+                # Extract metadata and custom fields using wp:postmeta
                 post['custom_fields'] = {}
                 for postmeta in item.xpath('wp:postmeta', namespaces=NAMESPACES):
                     meta_key_elem = postmeta.find('wp:meta_key', NAMESPACES)
@@ -175,6 +246,11 @@ def parse_wxr2yaml(xml_filepath: str, yaml_filepath: str, php_script_path: str):
 
                     if meta_key_elem is not None and meta_key_elem.text and meta_value_elem is not None:
                         meta_key = meta_key_elem.text
+                        
+                        # Skip excluded custom fields
+                        if excluded_custom_fields and meta_key in excluded_custom_fields:
+                            continue
+                            
                         meta_value_raw = meta_value_elem.text # Can be None if empty
 
                         # Ensure meta_value_raw is a string
@@ -217,8 +293,13 @@ def parse_wxr2yaml(xml_filepath: str, yaml_filepath: str, php_script_path: str):
                         else:
                             post['custom_fields'][meta_key] = meta_value_processed
 
-                # Add the processed post to our list
-                posts_data.append(post)
+                # Always collect attachments for gallery resolution
+                if post['post_type'] == 'attachment':
+                    attachments[post['id']] = post
+
+                # Only add to posts_data if included_post_types is None or matches
+                if (included_post_types is None) or (post['post_type'] in included_post_types):
+                    posts_data.append(post)
 
             finally:
                 # Clean up the element and its ancestors
@@ -232,6 +313,32 @@ def parse_wxr2yaml(xml_filepath: str, yaml_filepath: str, php_script_path: str):
                     item.getparent().remove(item)
 
         print(f"Parseo completado. {len(posts_data)} ítems procesados.")
+
+        # Second pass: process gallery IDs
+        print("Procesando IDs de galería...")
+        for post in posts_data:
+            if 'galeria' in post['custom_fields']:
+                gallery_data = post['custom_fields']['galeria']
+                if not isinstance(gallery_data, (str, list)):
+                    continue
+                    
+                # Convert string to list if necessary
+                if isinstance(gallery_data, str):
+                    gallery_ids = [id.strip() for id in gallery_data.split(',')]
+                else:
+                    gallery_ids = gallery_data
+                    
+                image_urls = []
+                for attachment_id in gallery_ids:
+                    # Find the attachment in our dictionary
+                    attachment = attachments.get(str(attachment_id))
+                    
+                    if attachment and '_wp_attached_file' in attachment['custom_fields']:
+                        image_urls.append(attachment['custom_fields']['_wp_attached_file'])
+                    else:
+                        image_urls.append(attachment_id)  # Keep original ID if not found
+                        
+                post['custom_fields']['galeria'] = image_urls
 
     except FileNotFoundError:
         print(f"Error: El archivo XML no fue encontrado en {xml_filepath}")

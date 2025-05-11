@@ -1,3 +1,11 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "lxml>=4.9.0",
+#     "markdownify>=0.11.6",
+#     "pyyaml>=6.0",
+# ]
+# ///
 import argparse
 from wp_export2yaml import parse_wxr2yaml
 
