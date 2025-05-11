@@ -17,7 +17,7 @@ This project provides a robust Python tool to convert WordPress WXR (XML export)
 
 ## Requirements
 - [uv](https://github.com/astral-sh/uv)
-- Python 3.8+
+- Python 3.13+
 - The following Python packages:
   - lxml
   - PyYAML
